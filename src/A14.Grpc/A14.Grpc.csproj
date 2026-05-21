@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" Version="2.64.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.27.1" />
+    <PackageReference Include="Grpc.Tools" Version="2.64.0" PrivateAssets="All" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../A14.Core/A14.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="../../proto/telemetry.proto" GrpcServices="Client" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,5 @@
+grpcio==1.73.0
+grpcio-tools==1.73.0
+protobuf==5.27.2
+numpy==2.0.2
+scikit-learn==1.5.1
