@@ -1,35 +1,59 @@
 from concurrent import futures
+
 import grpc
 
 import telemetry_pb2
 import telemetry_pb2_grpc
+from a14_ai.analyzer import analyze_frame
+from a14_ai.models import FrameFeatures, ProcessFeatures
 
 
 class TelemetryAnalysisService(telemetry_pb2_grpc.TelemetryAnalysisServicer):
     def StreamTelemetry(self, request_iterator, context):
         for frame in request_iterator:
-            score = max(0, min(100, int(100 - frame.cpu_total_percent * 0.5 - frame.disk_latency_ms * 1.2)))
-            bottlenecks = []
-            if frame.cpu_total_percent > 85:
-                bottlenecks.append(telemetry_pb2.Bottleneck(type="cpu", target="system", severity=80, explanation="High sustained CPU utilization"))
-            if frame.disk_latency_ms > 20:
-                bottlenecks.append(telemetry_pb2.Bottleneck(type="disk", target="system", severity=70, explanation="Elevated disk latency"))
+            ram_pressure = 0.0 if frame.ram_total_gb <= 0 else (frame.ram_used_gb / frame.ram_total_gb) * 100.0
+            features = FrameFeatures(
+                cpu_total_percent=frame.cpu_total_percent,
+                ram_pressure_percent=ram_pressure,
+                disk_queue_depth=frame.disk_queue_depth,
+                disk_latency_ms=frame.disk_latency_ms,
+            )
 
-            recommendations = [
-                telemetry_pb2.Recommendation(
-                    id="safe:background-suppression",
-                    action="Suppress non-essential background processes",
-                    estimated_impact=35,
-                    risk_score=20,
-                    requires_confirmation=True,
+            process_features = [
+                ProcessFeatures(
+                    pid=p.pid,
+                    name=p.name,
+                    cpu_percent=p.cpu_percent,
+                    ram_mb=p.ram_mb,
+                    disk_read_kbps=p.disk_read_kbps,
+                    disk_write_kbps=p.disk_write_kbps,
                 )
+                for p in frame.processes
             ]
 
+            signal = analyze_frame(features, process_features)
             yield telemetry_pb2.AnalysisResponse(
-                health_score=score,
-                bottlenecks=bottlenecks,
-                recommendations=recommendations,
-                model_version="mvp-rule-v0",
+                health_score=signal.health_score,
+                bottlenecks=[
+                    telemetry_pb2.Bottleneck(
+                        type=b.kind,
+                        target=b.target,
+                        severity=b.severity,
+                        explanation=b.explanation,
+                    )
+                    for b in signal.bottlenecks
+                ],
+                recommendations=[
+                    telemetry_pb2.Recommendation(
+                        id=r.id,
+                        action=r.action,
+                        estimated_impact=r.estimated_impact,
+                        risk_score=r.risk_score,
+                        requires_confirmation=r.requires_confirmation,
+                    )
+                    for r in signal.recommendations
+                ],
+                model_version=signal.model_version,
             )
 
 
